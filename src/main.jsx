@@ -2,8 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import AdminDashboard from './AdminDashboard.jsx'
 
-const root = ReactDOM.createRoot(document.getElementById('root'))
+const isAdminRoute = window.location.pathname.startsWith('/admin')
 
-root.render(<App/>)
-
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    {isAdminRoute ? <AdminDashboard /> : <App />}
+  </React.StrictMode>
+)
