@@ -150,8 +150,12 @@ export default function AdminDashboard() {
     setSavingProduct(true);
     setErrorMsg('');
     try {
+      if (!productForm.name || !productForm.name.trim()) {
+        throw new Error('Product name is required');
+      }
       const payload = {
         ...productForm,
+        name: productForm.name.trim(),
         price: parseFloat(productForm.price) || 0,
         originalPrice: productForm.originalPrice ? parseFloat(productForm.originalPrice) : null,
         discount: productForm.discount ? parseInt(productForm.discount) : null,
@@ -462,6 +466,16 @@ export default function AdminDashboard() {
             <form onSubmit={handleProductSubmit} className="p-5 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Product Name</label>
+                  <input
+                    required
+                    value={productForm.name}
+                    onChange={(e) => setProductForm(p => ({ ...p, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    placeholder="e.g. Rose Gold Birthday Balloon Setup"
+                  />
+                </div>
+                <div className="col-span-2">
                   <label className="block text-xs font-medium text-slate-600 mb-1">Image URL</label>
                   <input required value={productForm.image} onChange={(e) => setProductForm(p => ({ ...p, image: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-2" />
                   <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer w-fit">
@@ -494,10 +508,6 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Original price</label>
                   <input type="number" value={productForm.originalPrice} onChange={(e) => setProductForm(p => ({ ...p, originalPrice: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Image URL</label>
-                  <input required value={productForm.image} onChange={(e) => setProductForm(p => ({ ...p, image: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-slate-600 mb-1">Short description</label>
