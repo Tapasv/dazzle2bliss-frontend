@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Star, Phone, Mail, MapPin, Menu, X, Heart, MessageCircle, Search, ChevronDown, Package, Clock, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import emailjs from '@emailjs/browser';
-import products from './products';
 
 const sendEmail = async (formData) => {
   try {
@@ -78,6 +77,9 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showToast, setShowToast] = useState(false);
   const [pageLoading, setPageLoading] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState('');
   const navTimer = useRef(null);
 
   const sortedProducts = [...products].sort((a, b) => b.rating - a.rating);
@@ -92,6 +94,24 @@ function App() {
   };
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  const API_BASE = 'https://dazzle2bliss-backend-production.up.railway.app/api';
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/products`);
+        if (!res.ok) throw new Error('Failed to load products');
+        const data = await res.json();
+        setProducts(data.map(p => ({ ...p, id: p.id || p._id })));
+      } catch (err) {
+        setProductsError('Could not load decorations right now. Please refresh.');
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+    loadProducts();
+  }, []);
 
   // Central navigation helper: shows the branded loading state, runs the
   // requested state change(s) after a short beat, then clears the loader.
@@ -738,114 +758,122 @@ function App() {
 
       {pageLoading && <PageLoader />}
 
-      <Navbar />
-
-      {currentPage === 'home' && !selectedCategory && (
+      {productsLoading ? (
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
+        </div>
+      ) : productsError ? (
+        <div className="text-center py-32 text-stone-500">{productsError}</div>
+      ) : (
         <>
-          <HeroSection />
-          <ProductSection title="Top Selling" limit={6} bg="bg-white" />
-          <CategoryButtons />
-          <ProductSection title="Party Decoration" category="baby-shower" limit={3} showViewMore={true} bg="bg-white" />
-          <ProductSection title="Theme Decoration" category="theme" limit={3} showViewMore={true} bg="bg-orange-50/50" />
-        </>
-      )}
-
-      {currentPage === 'home' && selectedCategory && <CategoryProducts />}
-
-      {currentPage === 'product' && selectedProduct && <ProductDetails />}
-
-      {currentPage === 'decorations' && (
-        <div className="max-w-6xl mx-auto px-5 sm:px-8 py-16 md:py-20">
-          {fromViewMore && (
-            <button onClick={handleBackFromDecorations} className="mb-8 text-sm font-medium text-stone-600 hover:text-rose-600 flex items-center gap-2">
-              <ArrowRight className="w-4 h-4 rotate-180" /> Back
-            </button>
+          <Navbar />
+          {currentPage === 'home' && !selectedCategory && (
+            <>
+              <HeroSection />
+              <ProductSection title="Top Selling" limit={6} bg="bg-white" />
+              <CategoryButtons />
+              <ProductSection title="Party Decoration" category="baby-shower" limit={3} showViewMore={true} bg="bg-white" />
+              <ProductSection title="Theme Decoration" category="theme" limit={3} showViewMore={true} bg="bg-orange-50/50" />
+            </>
           )}
-          <p className="text-center text-rose-600 text-xs font-semibold tracking-wide uppercase mb-2">The full range</p>
-          <h1 className="font-serif text-3xl md:text-5xl text-stone-900 mb-10 text-center">All Decorations</h1>
-          <SearchBar />
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
-              {filteredProducts.map(product => <ProductCard key={product.id} product={product} />)}
-            </div>
-          ) : (
-            <div className="text-center py-16">
-              <p className="text-stone-500 mb-3">No decorations found matching "{searchQuery}"</p>
-              <button onClick={() => setSearchQuery('')} className="text-sm font-semibold text-rose-600">Clear search</button>
+
+          {currentPage === 'home' && selectedCategory && <CategoryProducts />}
+
+          {currentPage === 'product' && selectedProduct && <ProductDetails />}
+
+          {currentPage === 'decorations' && (
+            <div className="max-w-6xl mx-auto px-5 sm:px-8 py-16 md:py-20">
+              {fromViewMore && (
+                <button onClick={handleBackFromDecorations} className="mb-8 text-sm font-medium text-stone-600 hover:text-rose-600 flex items-center gap-2">
+                  <ArrowRight className="w-4 h-4 rotate-180" /> Back
+                </button>
+              )}
+              <p className="text-center text-rose-600 text-xs font-semibold tracking-wide uppercase mb-2">The full range</p>
+              <h1 className="font-serif text-3xl md:text-5xl text-stone-900 mb-10 text-center">All Decorations</h1>
+              <SearchBar />
+              {filteredProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
+                  {filteredProducts.map(product => <ProductCard key={product.id} product={product} />)}
+                </div>
+              ) : (
+                <div className="text-center py-16">
+                  <p className="text-stone-500 mb-3">No decorations found matching "{searchQuery}"</p>
+                  <button onClick={() => setSearchQuery('')} className="text-sm font-semibold text-rose-600">Clear search</button>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {currentPage === 'about' && (
-        <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16 md:py-20">
-          <p className="text-center text-rose-600 text-xs font-semibold tracking-wide uppercase mb-2">Our story</p>
-          <h1 className="font-serif text-3xl md:text-5xl text-stone-900 mb-10 text-center">About Dazzle2Bliss</h1>
-          <div className="space-y-6 text-stone-600 leading-relaxed">
-            <p>Dazzle2Bliss began with a simple idea — that celebration decor should feel personal, not off-the-shelf. Based in Delhi NCR, we work closely with each client to design settings that reflect the occasion and the people at the centre of it.</p>
-            <p>From an intimate baby shower to a milestone anniversary, our team handles every part of the setup — consultation, design, installation, and takedown — so the day itself is easy.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-6 mt-14 pt-10 border-t border-stone-200">
-            <div className="text-center">
-              <p className="font-serif text-3xl text-rose-600">500+</p>
-              <p className="text-xs text-stone-500 font-medium mt-1">Happy Clients</p>
-            </div>
-            <div className="text-center">
-              <p className="font-serif text-3xl text-amber-600">1000+</p>
-              <p className="text-xs text-stone-500 font-medium mt-1">Events Decorated</p>
-            </div>
-            <div className="text-center">
-              <p className="font-serif text-3xl text-emerald-600">4.8</p>
-              <p className="text-xs text-stone-500 font-medium mt-1">Average Rating</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {currentPage === 'contact' && (
-        <div className="max-w-5xl mx-auto px-5 sm:px-8 py-16 md:py-20">
-          <p className="text-center text-rose-600 text-xs font-semibold tracking-wide uppercase mb-2">Get in touch</p>
-          <h1 className="font-serif text-3xl md:text-5xl text-stone-900 mb-12 text-center">Contact Us</h1>
-
-          <div className="grid md:grid-cols-2 gap-12 md:gap-16">
-            <div className="space-y-8">
-              <p className="text-stone-600 leading-relaxed">We'd love to hear about your celebration. Reach out and we'll get back to you within a day.</p>
-              <div className="space-y-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
-                    <Phone className="w-4 h-4 text-rose-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-stone-500 uppercase mb-1">Phone</p>
-                    <p className="text-stone-800 font-medium">8510011234</p>
-                  </div>
+          {currentPage === 'about' && (
+            <div className="max-w-3xl mx-auto px-5 sm:px-8 py-16 md:py-20">
+              <p className="text-center text-rose-600 text-xs font-semibold tracking-wide uppercase mb-2">Our story</p>
+              <h1 className="font-serif text-3xl md:text-5xl text-stone-900 mb-10 text-center">About Dazzle2Bliss</h1>
+              <div className="space-y-6 text-stone-600 leading-relaxed">
+                <p>Dazzle2Bliss began with a simple idea — that celebration decor should feel personal, not off-the-shelf. Based in Delhi NCR, we work closely with each client to design settings that reflect the occasion and the people at the centre of it.</p>
+                <p>From an intimate baby shower to a milestone anniversary, our team handles every part of the setup — consultation, design, installation, and takedown — so the day itself is easy.</p>
+              </div>
+              <div className="grid grid-cols-3 gap-6 mt-14 pt-10 border-t border-stone-200">
+                <div className="text-center">
+                  <p className="font-serif text-3xl text-rose-600">500+</p>
+                  <p className="text-xs text-stone-500 font-medium mt-1">Happy Clients</p>
                 </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-sky-50 flex items-center justify-center shrink-0">
-                    <Mail className="w-4 h-4 text-sky-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-stone-500 uppercase mb-1">Email</p>
-                    <p className="text-stone-800 font-medium break-all">nakuls1993@gmail.com</p>
-                  </div>
+                <div className="text-center">
+                  <p className="font-serif text-3xl text-amber-600">1000+</p>
+                  <p className="text-xs text-stone-500 font-medium mt-1">Events Decorated</p>
                 </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-stone-500 uppercase mb-1">Location</p>
-                    <p className="text-stone-800 font-medium">Serving across Delhi NCR</p>
-                  </div>
+                <div className="text-center">
+                  <p className="font-serif text-3xl text-emerald-600">4.8</p>
+                  <p className="text-xs text-stone-500 font-medium mt-1">Average Rating</p>
                 </div>
               </div>
             </div>
-            <ContactForm />
-          </div>
-        </div>
-      )}
+          )}
 
-      <Footer />
+          {currentPage === 'contact' && (
+            <div className="max-w-5xl mx-auto px-5 sm:px-8 py-16 md:py-20">
+              <p className="text-center text-rose-600 text-xs font-semibold tracking-wide uppercase mb-2">Get in touch</p>
+              <h1 className="font-serif text-3xl md:text-5xl text-stone-900 mb-12 text-center">Contact Us</h1>
+
+              <div className="grid md:grid-cols-2 gap-12 md:gap-16">
+                <div className="space-y-8">
+                  <p className="text-stone-600 leading-relaxed">We'd love to hear about your celebration. Reach out and we'll get back to you within a day.</p>
+                  <div className="space-y-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
+                        <Phone className="w-4 h-4 text-rose-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-stone-500 uppercase mb-1">Phone</p>
+                        <p className="text-stone-800 font-medium">8510011234</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-sky-50 flex items-center justify-center shrink-0">
+                        <Mail className="w-4 h-4 text-sky-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-stone-500 uppercase mb-1">Email</p>
+                        <p className="text-stone-800 font-medium break-all">nakuls1993@gmail.com</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                        <MapPin className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-stone-500 uppercase mb-1">Location</p>
+                        <p className="text-stone-800 font-medium">Serving across Delhi NCR</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <ContactForm />
+              </div>
+            </div>
+          )}
+          <Footer />
+        </>
+      )}
     </div>
   );
 }

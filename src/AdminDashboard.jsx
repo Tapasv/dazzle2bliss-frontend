@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutDashboard, Package, MessageSquare, LogOut, Plus, Pencil, Trash2, X, Lock, User, Loader2, TrendingUp, Mail, Phone } from 'lucide-react';
+import { LayoutDashboard, Package, MessageSquare, LogOut, Plus, Pencil, Trash2, X, Lock, User, Loader2, TrendingUp, Mail, Phone, Upload } from 'lucide-react';
 
 const API_BASE = 'https://dazzle2bliss-backend-production.up.railway.app/api';
 
@@ -15,7 +15,7 @@ export default function AdminDashboard() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
-
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [stats, setStats] = useState(null);
   const [products, setProducts] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -49,6 +49,29 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingImage(true);
+    setErrorMsg('');
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch(`${API_BASE}/products/upload-image`, {
+        method: 'POST',
+        headers: authHeaders, // don't set Content-Type manually — the browser sets the multipart boundary
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Upload failed');
+      setProductForm(p => ({ ...p, image: data.url }));
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleLogout = () => {
     setToken(null);
     setStats(null);
@@ -77,7 +100,8 @@ export default function AdminDashboard() {
     try {
       const res = await fetch(`${API_BASE}/products`);
       if (!res.ok) throw new Error('Failed to load products');
-      setProducts(await res.json());
+      const data = await res.json();
+      setProducts(data.map(p => ({ ...p, id: p.id || p._id })));
     } catch (err) {
       setErrorMsg(err.message);
     } finally {
@@ -247,9 +271,8 @@ export default function AdminDashboard() {
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                view === item.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${view === item.id ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               <item.icon className="w-4 h-4" />
               {item.label}
@@ -439,8 +462,16 @@ export default function AdminDashboard() {
             <form onSubmit={handleProductSubmit} className="p-5 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Name</label>
-                  <input required value={productForm.name} onChange={(e) => setProductForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Image URL</label>
+                  <input required value={productForm.image} onChange={(e) => setProductForm(p => ({ ...p, image: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mb-2" />
+                  <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer w-fit">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{uploadingImage ? 'Uploading...' : 'Or upload an image instead'}</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+                  </label>
+                  {productForm.image && (
+                    <img src={productForm.image} alt="preview" className="mt-2 w-16 h-16 object-cover rounded-lg border border-slate-200" />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
