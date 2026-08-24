@@ -65,13 +65,46 @@ const styleFor = (cat) => categoryStyle[cat] || categoryStyle.birthday;
 // short enough that navigating the site never feels sluggish.
 const NAV_DELAY_MS = 550;
 
+// ---------------- URL <-> APP STATE SYNC ----------------
+// The whole site is a single-page app driven by React state (currentPage,
+// selectedCategory, searchQuery, selectedProduct). By default a refresh loses
+// all of that and the app boots back into 'home'. To fix that we mirror the
+// relevant bits of state into the URL's query string (?page=...&category=...
+// &search=...&id=...) any time they change, and read that query string back
+// out the moment the app boots so a refreshed/shared/bookmarked URL lands the
+// visitor exactly where they left off — including on a specific product.
+const readStateFromURL = () => {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    page: params.get('page') || 'home',
+    category: params.get('category') || '',
+    search: params.get('search') || '',
+    productId: params.get('id') || null
+  };
+};
+
+const writeStateToURL = ({ page, category, search, productId }) => {
+  const params = new URLSearchParams();
+  if (page && page !== 'home') params.set('page', page);
+  if (category) params.set('category', category);
+  if (page === 'decorations' && search) params.set('search', search);
+  if (page === 'product' && productId) params.set('id', productId);
+  const qs = params.toString();
+  const newUrl = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash || ''}`;
+  window.history.replaceState(null, '', newUrl);
+};
+
 function App() {
-  const [currentPage, setCurrentPage] = useState('home');
+  // Seed initial state straight from the URL (once) so the very first render
+  // already reflects a refreshed/deep-linked page instead of flashing 'home'.
+  const initialURLState = useRef(readStateFromURL());
+
+  const [currentPage, setCurrentPage] = useState(initialURLState.current.page);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [favorites, setFavorites] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialURLState.current.search);
   const [showDecorDropdown, setShowDecorDropdown] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(initialURLState.current.category);
   const savedScrollPosition = useRef(0);
   const [fromViewMore, setFromViewMore] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -80,6 +113,10 @@ function App() {
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState('');
+  // True once we've resolved the initial deep link (including looking the
+  // product up by id, if any) — URL writes are held off until then so we
+  // never overwrite the incoming URL with a premature/empty state.
+  const [hasHydrated, setHasHydrated] = useState(false);
   const navTimer = useRef(null);
 
   const sortedProducts = [...products].sort((a, b) => b.rating - a.rating);
@@ -103,15 +140,59 @@ function App() {
         const res = await fetch(`${API_BASE}/products`);
         if (!res.ok) throw new Error('Failed to load products');
         const data = await res.json();
-        setProducts(data.map(p => ({ ...p, id: p.id || p._id })));
+        const mapped = data.map(p => ({ ...p, id: p.id || p._id }));
+        setProducts(mapped);
+
+        // Resolve a deep-linked product page now that we actually have the
+        // product list to look the id up against.
+        if (initialURLState.current.page === 'product' && initialURLState.current.productId) {
+          const found = mapped.find(p => String(p.id) === String(initialURLState.current.productId));
+          if (found) {
+            setSelectedProduct(found);
+          } else {
+            // Stale/invalid id in the URL — fall back gracefully instead of
+            // showing a broken product page.
+            setCurrentPage('home');
+          }
+        }
       } catch (err) {
         setProductsError('Could not load decorations right now. Please refresh.');
       } finally {
         setProductsLoading(false);
+        setHasHydrated(true);
       }
     };
     loadProducts();
   }, []);
+
+  // Keep the URL in sync with the app's current "location" so refreshing,
+  // sharing, or bookmarking the page returns to the same view.
+  useEffect(() => {
+    if (!hasHydrated) return;
+    writeStateToURL({
+      page: currentPage,
+      category: selectedCategory,
+      search: searchQuery,
+      productId: selectedProduct ? selectedProduct.id : null
+    });
+  }, [hasHydrated, currentPage, selectedCategory, searchQuery, selectedProduct]);
+
+  // Support the browser's back/forward buttons for the URLs we now produce.
+  useEffect(() => {
+    const handlePopState = () => {
+      const state = readStateFromURL();
+      setCurrentPage(state.page);
+      setSelectedCategory(state.category);
+      setSearchQuery(state.search);
+      if (state.page === 'product' && state.productId) {
+        const found = products.find(p => String(p.id) === String(state.productId));
+        setSelectedProduct(found || null);
+      }
+      scrollToTop();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
 
   // Central navigation helper: shows the branded loading state, runs the
   // requested state change(s) after a short beat, then clears the loader.
