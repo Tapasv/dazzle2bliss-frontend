@@ -65,37 +65,6 @@ const styleFor = (cat) => categoryStyle[cat] || categoryStyle.birthday;
 // short enough that navigating the site never feels sluggish.
 const NAV_DELAY_MS = 550;
 
-// ---------------- ROUTING HELPERS ----------------
-// We keep React state (currentPage / selectedCategory / selectedProduct /
-// searchQuery / fromViewMore) as the single source of truth, and mirror it
-// into the URL hash so a refresh lands back on the same view. We use
-// history.replaceState (not window.location.hash = ...) so this never adds
-// extra browser-history entries and never fires a native hashchange event,
-// which keeps this a one-way sync (state -> hash) with no risk of loops.
-function parseRouteFromHash(hash) {
-  const clean = (hash || '').replace(/^#\/?/, '');
-  const [pathPart, queryPart] = clean.split('?');
-  const segments = pathPart.split('/').filter(Boolean);
-  const params = new URLSearchParams(queryPart || '');
-
-  if (segments[0] === 'product' && segments[1]) {
-    return { page: 'product', productId: segments[1] };
-  }
-  if (segments[0] === 'category' && segments[1]) {
-    return { page: 'home', category: segments[1] };
-  }
-  if (segments[0] === 'decorations') {
-    return {
-      page: 'decorations',
-      search: params.get('search') || '',
-      fromView: params.get('from') === 'view-more'
-    };
-  }
-  if (segments[0] === 'about') return { page: 'about' };
-  if (segments[0] === 'contact') return { page: 'contact' };
-  return { page: 'home' };
-}
-
 function App() {
   const [currentPage, setCurrentPage] = useState('home');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -112,10 +81,6 @@ function App() {
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState('');
   const navTimer = useRef(null);
-
-  // Holds a product id read from the URL on load, until `products` has
-  // finished fetching and we can resolve it to the actual product object.
-  const [pendingProductId, setPendingProductId] = useState(null);
 
   const sortedProducts = [...products].sort((a, b) => b.rating - a.rating);
   const filteredProducts = sortedProducts.filter(p =>
@@ -147,64 +112,6 @@ function App() {
     };
     loadProducts();
   }, []);
-
-  // ---------------- ROUTING: restore state from the URL on first load ----------------
-  useEffect(() => {
-    const route = parseRouteFromHash(window.location.hash);
-    if (route.page === 'product') {
-      setPendingProductId(route.productId);
-      setCurrentPage('product');
-    } else if (route.category) {
-      setCurrentPage('home');
-      setSelectedCategory(route.category);
-    } else if (route.page === 'decorations') {
-      setCurrentPage('decorations');
-      setSearchQuery(route.search);
-      setFromViewMore(route.fromView);
-    } else {
-      setCurrentPage(route.page);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Once products have loaded, resolve a pending product id (from the URL)
-  // into the actual product object so the detail page can render.
-  useEffect(() => {
-    if (!pendingProductId || products.length === 0) return;
-    const found = products.find(p => String(p.id) === String(pendingProductId));
-    if (found) {
-      setSelectedProduct(found);
-    } else {
-      // Product no longer exists (or bad link) — fall back to home instead
-      // of showing a blank page.
-      setCurrentPage('home');
-    }
-    setPendingProductId(null);
-  }, [pendingProductId, products]);
-
-  // ---------------- ROUTING: keep the URL in sync with the current view ----------------
-  useEffect(() => {
-    let newHash = '';
-    if (currentPage === 'product' && selectedProduct) {
-      newHash = `/product/${selectedProduct.id}`;
-    } else if (currentPage === 'home' && selectedCategory) {
-      newHash = `/category/${selectedCategory}`;
-    } else if (currentPage === 'decorations') {
-      const params = new URLSearchParams();
-      if (searchQuery) params.set('search', searchQuery);
-      if (fromViewMore) params.set('from', 'view-more');
-      const qs = params.toString();
-      newHash = `/decorations${qs ? `?${qs}` : ''}`;
-    } else if (currentPage === 'about') {
-      newHash = '/about';
-    } else if (currentPage === 'contact') {
-      newHash = '/contact';
-    }
-    const target = newHash ? `#${newHash}` : window.location.pathname + window.location.search;
-    if (window.location.hash !== (newHash ? `#${newHash}` : '')) {
-      window.history.replaceState(null, '', target);
-    }
-  }, [currentPage, selectedCategory, selectedProduct, searchQuery, fromViewMore]);
 
   // Central navigation helper: shows the branded loading state, runs the
   // requested state change(s) after a short beat, then clears the loader.
